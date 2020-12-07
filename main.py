@@ -18,6 +18,23 @@ def task_2():
     logger.info('End   Thread_2')
 
 
+def run_thread(task, thread_name: str = 'Thread-1', interval: int = 5):
+    for thread in threading.enumerate():
+        if thread_name in thread.name:
+            return None
+
+    stop_time = None
+    next_start_time = time.time() + WORKING_TIME
+    if not thread.is_alive():
+        if not stop_time:
+            stop_time = time.time()
+            next_start_time = stop_time + interval
+        if time.time() >= next_start_time:
+            thread = threading.Thread(target=task, name=thread_name, daemon=True)
+            thread.start()
+            stop_time = None
+
+
 if __name__ == '__main__':
     configure_logger()
     logger = logging.getLogger()
