@@ -1,22 +1,24 @@
 import logging
 import time
-from threading import Thread
+from threading import Thread, Event
 
 from my_logging import configure_logger
 
 WORKING_TIME = 21
 
 
-def task_1():
+def task_1(done_event: Event):
     logger.info('Start Thread_1: Work 2 sec')
     time.sleep(2)
     logger.info('End   Thread_1')
+    done_event.set()
 
 
-def task_2():
+def task_2(done_event: Event):
     logger.info('Start Thread_2: Work 5 sec')
     time.sleep(5)
     logger.info('End   Thread_2')
+    done_event.set()
 
 
 class Watcher:
@@ -30,8 +32,8 @@ class Watcher:
     task = None
     interval: int = None
     thread: Thread = Thread(target=task)
-    start_time = 0
-    need_interval: bool = False
+    start_time = time.time()
+    event = Event()
 
     def __init__(self, task, interval):
         self.task = task
@@ -42,42 +44,34 @@ class Watcher:
         Создание и запуск потока.
         Ставится флаг что требуется поставить время запуска потока
         """
-        self.thread = Thread(target=self.task)
-        self.thread.start()
-        self.need_interval = True
+        self.set_start_time()
+        if self.is_ready():
+            Thread(target=self.task, args=(self.event,), daemon=True).start()
+            self.start_time = 0
 
     def set_start_time(self) -> None:
         """
         Установка времени когда запустить снова поток.
         Флаг что надо поставить время запуска убирается
         """
-        if self.need_interval and not self.is_alive():
+        if self.is_done():
             self.start_time = time.time() + self.interval
-            self.need_interval = False
+            self.event.clear()
 
     def is_ready(self) -> bool:
         """
         Проверка что поток можно запускать
-        Потока нет - Время запуска подошло - Время запуска установлено
         """
-        self.set_start_time()
-        if not self.is_alive() and self.is_interval_done() and not self.need_interval:
+        if not self.is_done() and time.time() >= self.start_time and self.start_time != 0:
             return True
         return False
 
-    def is_alive(self) -> bool:
+    def is_done(self) -> bool:
         """
-        Проверка что поток жив
+        Проверка что поток закончил работу
         """
-        return self.thread.is_alive()
+        return self.event.is_set()
 
-    def is_interval_done(self) -> bool:
-        """
-        Проверка что время запуска подошло
-        """
-        if time.time() >= self.start_time:
-            return True
-        return False
 
 
 if __name__ == '__main__':
@@ -90,7 +84,5 @@ if __name__ == '__main__':
     watch_1 = Watcher(task=task_1, interval=5)
     watch_2 = Watcher(task=task_2, interval=10)
     while time.time() < stop_time:
-        if watch_1.is_ready():
-            watch_1.runner()
-        if watch_2.is_ready():
-            watch_2.runner()
+        watch_1.runner()
+        watch_2.runner()
