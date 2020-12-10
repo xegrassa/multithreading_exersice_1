@@ -25,44 +25,39 @@ class Watcher:
     """
     :atribute task - задача которую надо делать
     :atribute interval - интервал между задачами
-    :atribute thread - поток который делает задачу
     :atribute start_time - время когда начать следующий поток после ожидания интервала
-    :atribute need_interval - требуется ли выставить время следующего потока
+    :atribute thread_end - Event что поток законч работу
     """
-    task = None
-    interval: int = None
-    thread: Thread = Thread(target=task)
-    start_time = time.time()
-    event = Event()
 
-    def __init__(self, task, interval):
+    def __init__(self, task, interval: int):
         self.task = task
         self.interval = interval
+        self.thread_end = Event()
+        self.start_time = time.time()
 
     def runner(self) -> None:
         """
         Создание и запуск потока.
         Ставится флаг что требуется поставить время запуска потока
         """
-        self.set_start_time()
+        if self.is_done():
+            self.set_start_time()
+            self.thread_end.clear()
         if self.is_ready():
-            Thread(target=self.task, args=(self.event,), daemon=True).start()
+            Thread(target=self.task, args=(self.thread_end,), daemon=True).start()
             self.start_time = 0
 
     def set_start_time(self) -> None:
         """
         Установка времени когда запустить снова поток.
-        Флаг что надо поставить время запуска убирается
         """
-        if self.is_done():
-            self.start_time = time.time() + self.interval
-            self.event.clear()
+        self.start_time = time.time() + self.interval
 
     def is_ready(self) -> bool:
         """
         Проверка что поток можно запускать
         """
-        if not self.is_done() and time.time() >= self.start_time and self.start_time != 0:
+        if (time.time() >= self.start_time and self.start_time != 0):
             return True
         return False
 
@@ -70,8 +65,7 @@ class Watcher:
         """
         Проверка что поток закончил работу
         """
-        return self.event.is_set()
-
+        return self.thread_end.is_set()
 
 
 if __name__ == '__main__':
